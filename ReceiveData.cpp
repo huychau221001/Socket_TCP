@@ -1,72 +1,114 @@
 #include <iostream>
 #include <fstream>
-#include <string>
-#include <cstdlib>
-#include <cstdio>
-#include <unistd.h>
-#include <arpa/inet.h>
-#include <netinet/in.h>
+#include <cstring>
 #include <sys/socket.h>
+#include <arpa/inet.h>
+#include <unistd.h>
 
-#define BUFFER_SIZE 1024
+const int BUFFER_SIZE = 1024;
 
-void receiveFile(int listenPort, const char* savePath) {
+void LogReceiveProgress(const char* fileName, int totalBytesReceived) {
+    std::ofstream logFile("receive_log.txt", std::ios::app);
+    if (logFile) {
+        logFile << "Received " << totalBytesReceived << " bytes of file " << fileName << std::endl;
+        logFile.close();
+    }
+}
+
+bool ReceiveData(int sockfd, const char* outputDirectory) {
+    char buffer[BUFFER_SIZE];
+    int totalBytesReceived = 0;
+    int bytesRead;
+
+    std::string outputFile;
+    std::ofstream outFile;
+
+    while ((bytesRead = recv(sockfd, buffer, sizeof(buffer), 0)) > 0) {
+        if (totalBytesReceived == 0) {
+            // Nhận tên tập tin từ máy gửi (nếu là tập tin)
+            buffer[bytesRead] = '\0';
+            outputFile = std::string(outputDirectory) + "/" + buffer;
+
+            // Mở tập tin để ghi
+            outFile.open(outputFile, std::ios::binary);
+            if (!outFile) {
+                std::cerr << "Failed to create output file." << std::endl;
+                return false;
+            }
+        } else {
+            // Ghi dữ liệu vào tập tin
+            outFile.write(buffer, bytesRead);
+        }
+
+        totalBytesReceived += bytesRead;
+        std::cout << "Received " << totalBytesReceived << " bytes." << std::endl;
+        LogReceiveProgress(outputFile.c_str(), totalBytesReceived);
+    }
+
+    if (bytesRead < 0) {
+        std::cerr << "Error while receiving data." << std::endl;
+        return false;
+    }
+
+    outFile.close();
+    
+    std::cout << "Data received successfully and saved to: " << outputFile << std::endl;
+    LogReceiveProgress(outputFile.c_str(), totalBytesReceived);
+    return true;
+}
+
+int main(int argc, char* argv[]) {
+    if (argc != 4 || (strcmp(argv[1], "ReceiveData") != 0) || (strcmp(argv[2], "-out") != 0)) {
+        std::cerr << "Usage: ReceiveData -out <output_directory>" << std::endl;
+        return 1;
+    }
+
+    const char* outputDirectory = argv[3];
+
     int sockfd = socket(AF_INET, SOCK_STREAM, 0);
     if (sockfd == -1) {
-        perror("Socket creation failed");
-        return;
+        std::cerr << "Failed to create socket." << std::endl;
+        return 1;
     }
 
     sockaddr_in serverAddr;
     serverAddr.sin_family = AF_INET;
-    serverAddr.sin_port = htons(listenPort);
+    serverAddr.sin_port = htons(8080); // Port của máy nhận
     serverAddr.sin_addr.s_addr = INADDR_ANY;
 
     if (bind(sockfd, (struct sockaddr*)&serverAddr, sizeof(serverAddr)) == -1) {
-        perror("Binding failed");
+        std::cerr << "Binding error." << std::endl;
         close(sockfd);
-        return;
-    }
-
-    if (listen(sockfd, 1) == -1) {
-        perror("Listening failed");
-        close(sockfd);
-        return;
-    }
-
-    sockaddr_in clientAddr;
-    socklen_t addrLen = sizeof(clientAddr);
-    int connfd = accept(sockfd, (struct sockaddr*)&clientAddr, &addrLen);
-    if (connfd == -1) {
-        perror("Acceptance failed");
-        close(sockfd);
-        return;
-    }
-
-    std::ofstream outputFile(savePath, std::ios::binary);
-    char buffer[BUFFER_SIZE];
-    int bytesRead;
-
-    while ((bytesRead = recv(connfd, buffer, BUFFER_SIZE, 0)) > 0) {
-        outputFile.write(buffer, bytesRead);
-        std::cout << "Received " << bytesRead << " bytes." << std::endl;
-    }
-
-    close(connfd);
-    close(sockfd);
-    std::cout << "File received successfully and saved as '" << savePath << "'." << std::endl;
-}
-
-int main(int argc, char* argv[]) {
-    if (argc < 3 || strcmp(argv[1], "-out") != 0) {
-        std::cerr << "Usage: ReceiveData -out <location_store_file> <listen_port>" << std::endl;
         return 1;
     }
 
-    const char* savePath = argv[2];
-    int listenPort = std::atoi(argv[3]);
+    if (listen(sockfd, 5) == -1) {
+        std::cerr << "Listening error." << std::endl;
+        close(sockfd);
+        return 1;
+    }
 
-    receiveFile(listenPort, savePath);
+    std::cout << "Waiting for incoming connections..." << std::endl;
 
+    while (true) {
+        sockaddr_in clientAddr;
+        socklen_t clientAddrLen = sizeof(clientAddr);
+        int clientSockfd = accept(sockfd, (struct sockaddr*)&clientAddr, &clientAddrLen);
+        if (clientSockfd == -1) {
+            std::cerr << "Error accepting connection." << std::endl;
+            close(clientSockfd);
+            continue;
+        }
+
+        std::cout << "Accepted connection from " << inet_ntoa(clientAddr.sin_addr) << ":" << ntohs(clientAddr.sin_port) << std::endl;
+
+        if (!ReceiveData(clientSockfd, outputDirectory)) {
+            std::cerr << "Error receiving data from client." << std::endl;
+        }
+
+        close(clientSockfd);
+    }
+
+    close(sockfd);
     return 0;
 }

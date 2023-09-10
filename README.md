@@ -37,7 +37,7 @@ The program can be used to send text or files to a remote destination. It accept
 To send text to the remote destination, use the following command:
 
 ```bash
-./SendData <destination_address> <destination_port> SendText "<text_to_send>"
+./SendData <destination_address> SendText "<text_to_send>"
 ```
 
 - `<text_to_send>`: The text you want to send (enclose in double quotes if it contains spaces or special characters).
@@ -45,7 +45,7 @@ To send text to the remote destination, use the following command:
 Example:
 
 ```bash
-./SendData 192.168.1.100 8080 SendText "Hello, this is a text message."
+./SendData 192.168.1.100 SendText "Hello, this is a text message."
 ```
 
 ### Sending Files
@@ -53,7 +53,7 @@ Example:
 To send a file to the remote destination, use the following command:
 
 ```bash
-./SendData <destination_address> <destination_port> SendFile "<file_path>" <buffer_size>
+./SendData <destination_address> SendFile "<file_path>" <buffer_size>
 ```
 
 - `<file_path>`: The path to the file you want to send (enclose in double quotes if it contains spaces or special characters).
@@ -62,7 +62,7 @@ To send a file to the remote destination, use the following command:
 Example:
 
 ```bash
-./SendData 192.168.1.100 8080 SendFile "file.txt" 1024
+./SendData 192.168.1.100 SendFile "file.txt" 1024
 ```
 
 ## Important Notes
@@ -103,22 +103,20 @@ g++ ReceiveData.cpp -o ReceiveData
 The program can be used to receive files sent by a remote sender. It accepts the following command-line arguments:
 
 ```bash
-./ReceiveData -out <location_to_store_file> <listen_port>
+./ReceiveData -out <location_to_store_file> 
 ```
 
 - `-out`: This flag specifies the location where the received file will be stored.
 - `<location_to_store_file>`: The path and filename to save the received file.
-- `<listen_port>`: The port number on which the program will listen for incoming file data.
 
 Example:
 
 ```bash
-./ReceiveData -out received_file.txt 8080
+./ReceiveData -out /path/...
 ```
 
 ## Important Notes
 
-- Make sure the `<listen_port>` specified in the command line matches the port used by the sender.
 - Ensure that the directory where you intend to save the received file exists and is writable.
 - The program will listen for incoming connections on the specified port and save the received file to the specified location.
 
